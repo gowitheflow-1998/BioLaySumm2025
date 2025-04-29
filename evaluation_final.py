@@ -104,9 +104,9 @@ def evaluate_all(preds,refs_dicts,task_name):
   # preds = read_file_lines(pred_path)
 
   assert len(refs_dicts)==len(preds)
-  refs = [d['summary'] for d in refs_dicts]
+  refs = [d['reference'] for d in refs_dicts]
   if task_name == "lay_summ":
-    docs = [d['article'] for d in refs_dicts]
+    docs = [d['document'] for d in refs_dicts]
   
   score_dict = {}
 
