@@ -103,12 +103,10 @@ def evaluate_all(pred_path, gold_path,task_name):
 
   assert len(refs_dicts)==len(preds)
 
-  refs = [d['reference'] for d in refs_dicts]
-  docs = [d['document'] for d in refs_dicts]
+  refs = [d['reference'] for d in refs_dicts]  
   preds = [d['generated_caption'] for d in preds]
-
-  # preds = [d for d in preds_list]
-  # print(type(refs[0]),refs[0])
+  if task_name == "lay_summ":
+    docs = [d['document'] for d in refs_dicts]
   
   score_dict = {}
 
@@ -117,23 +115,23 @@ def evaluate_all(pred_path, gold_path,task_name):
   score_dict['BLEU'] = cal_bleu(preds, refs)
   score_dict['METEOR'] = cal_meteor(preds, refs)  
   score_dict['BERTScore'] = calc_bertscore(preds, refs)
+  
 
   # # Readability scores
   fkgl_score, cli_score, dcrs_score = calc_readability(preds)
   score_dict['FKGL'] = fkgl_score
   score_dict['DCRS'] = dcrs_score
   score_dict['CLI'] = cli_score
-  
 
   # Factuality scores
   if task_name == "lay_summ":
-    score_dict['AlignScore'] = calc_alignscore(preds, docs)
     score_dict['LENS'] = calc_lens(preds, refs, docs)
+    score_dict['AlignScore'] = calc_alignscore(preds, docs)   
     score_dict['SummaC'] = cal_summac(preds, docs)
   else:
-    score_dict['similarity'] = cal_similarity(preds, docs)
-    score_dict["f1chexbert"] = cal_f1bert(preds,refs)
+    score_dict['similarity'] = cal_similarity(preds, refs)
     score_dict["radgraph"] = cal_radgraph(preds,refs)
+    score_dict["f1chexbert"] = cal_f1bert(preds,refs)
 
   print(score_dict)
 
@@ -153,28 +151,41 @@ def final_score(task_name):
   if task_name == "lay_summ":
     # Calculate eLife scores
     elife_scores = evaluate_all(
-      os.path.join(submit_dir, 'elife.txt'), 
-      os.path.join(truth_dir, 'eLife_test.jsonl'),
+      read_file_lines(os.path.join(submit_dir, 'elife.txt')), 
+      read_file_lines(os.path.join(truth_dir, 'eLife_test.jsonl')),
+      task_name
       )
     torch.cuda.empty_cache()
 
     # Calculate PLOS scores
     plos_scores = evaluate_all(
-      os.path.join(submit_dir, 'plos.txt'), 
-      os.path.join(truth_dir, 'PLOS_test.jsonl'),
+      read_file_lines(os.path.join(submit_dir, 'plos.txt')), 
+      read_file_lines(os.path.join(truth_dir, 'PLOS_test.jsonl')),
+      task_name
       )
 
     # Calculate overall scores
     final_scores = {key: np.mean([elife_scores[key], plos_scores[key]]) for key in elife_scores.keys()}
-  else:
+  elif task_name == "rrg":
     # Calculate RRG scores
     final_scores = evaluate_all(
-      os.path.join(submit_dir, 'rrg.txt'), 
-      os.path.join(truth_dir, 'RRG_test.jsonl'),
+      read_file_lines(os.path.join(submit_dir, 'open_rrg.txt')), 
+      read_file_lines(os.path.join(truth_dir, 'OPEN_test.jsonl')),
+      task_name
       )
+  else:
+    # Calculate RRG scores
+    preds = read_file_lines(os.path.join(submit_dir, 'close_rrg.txt'))
+    refs_dicts = read_file_lines(os.path.join(truth_dir, 'CLOSE_test.jsonl'))
+    open_scores = evaluate_all(preds[:20000],refs_dicts[:20000],task_name)
+    mimic_scores = evaluate_all(preds[20000:],refs_dicts[20000:],task_name)
+
+    # Calculate overall scores
+    final_scores = {key: np.mean([open_scores[key], mimic_scores[key]]) for key in open_scores.keys()}
     
   # Write overall score
   write_scores(final_scores, os.path.join(output_dir, 'scores.txt'))
+
 
 
 
@@ -182,7 +193,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Evaluate medical text generation outputs.")
     parser.add_argument('--prediction_file', type=str, required=True,default= 'BioLaySumm2025-eLife_result.json', help='Path to the predictions JSON file.')
     parser.add_argument('--groundtruth_file', type=str, default= 'BioLaySumm2025-eLife_result.json',required=True, help='Path to the ground truth JSON file.')
-    parser.add_argument('--task_name',  type=str,  default= 'lay_summ', required=True, help='The name of the task.') #"rrg" 
+    parser.add_argument('--task_name',  type=str,  default= 'lay_summ', required=True, help='The name of the task.') #"rrg","close_rrg"
     args = parser.parse_args()
 
     evaluate_all(args.prediction_file, args.groundtruth_file, args.task_name)
