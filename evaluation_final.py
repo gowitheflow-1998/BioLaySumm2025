@@ -31,7 +31,7 @@ def calc_rouge(preds, refs):
 
 def cal_bleu(preds, refs):
   bleu = evaluate.load('sacrebleu')
-  scores = bleu.compute(predictions=preds, references=refs)["score"]
+  scores = bleu.compute(predictions=preds, references=refs,tokenize="13a")["score"]
   return scores
 
 def cal_meteor(preds, refs):
@@ -41,7 +41,7 @@ def cal_meteor(preds, refs):
 
 def calc_bertscore(preds, refs):
   # Get BERTScore F1 scores
-  P, R, F1 = score(preds, refs, lang="en", verbose=True, device='cuda')#:0
+  P, R, F1 = score(preds, refs, lang="en", verbose=True, device='cuda')
   return np.mean(F1.tolist())
 
 def calc_readability(preds):
@@ -70,12 +70,11 @@ def calc_alignscore(preds, docs):
   return np.mean(alignscorer.score(contexts=docs, claims=preds))
 
 def cal_summac(preds, docs):
-  model_conv = SummaCConv(models=["vitc"], bins='percentile', granularity="sentence", nli_labels="e", device="cuda", start_file="default", agg="mean")
+  model_conv = SummaCConv(models=["vitc"], bins='percentile', granularity="sentence", nli_labels="e", device="cuda", start_file="/summac/summac_conv_vitc_sent_perc_e.bin", agg="mean")
   return np.mean(model_conv.score(docs, preds)['scores'])
 
 def cal_f1bert(preds, refs):
   f1chexbert = F1CheXbert()
-  f1chexbert_score = f1chexbert(hyps=preds, refs=refs) 
   f1chexbert_score, _, _, _ = f1chexbert(hyps=preds, refs=refs) 
   return f1chexbert_score
 
@@ -86,7 +85,11 @@ def cal_radgraph(preds, refs):
 
 def read_file_lines(path):
   with open(path, 'r') as f:
-    lines = json.load(f)[:10]
+    lines = [line.strip("\n") for line in f.readlines()]
+
+  if path.endswith('.jsonl'):
+    lines = [json.loads(line) for line in lines]
+
   return lines
 
 def cal_similarity(preds, refs):
@@ -95,18 +98,15 @@ def cal_similarity(preds, refs):
   return np.mean(scores)
 
 
-def evaluate_all(pred_path, gold_path,task_name):
+def evaluate_all(preds,refs_dicts,task_name):
   # Load data from files
-  refs_dicts = read_file_lines(gold_path)
-  preds = read_file_lines(pred_path)
-  # print(preds[0].keys)
+  # refs_dicts = read_file_lines(gold_path)
+  # preds = read_file_lines(pred_path)
 
   assert len(refs_dicts)==len(preds)
-
-  refs = [d['reference'] for d in refs_dicts]  
-  preds = [d['generated_caption'] for d in preds]
+  refs = [d['summary'] for d in refs_dicts]
   if task_name == "lay_summ":
-    docs = [d['document'] for d in refs_dicts]
+    docs = [d['article'] for d in refs_dicts]
   
   score_dict = {}
 
@@ -144,9 +144,9 @@ def write_scores(score_dict, output_filepath):
       f.write(f"{key}: {value}\n")
 
 def final_score(task_name):
-  submit_dir = "./input_data"# ("elife.txt" and "plos.txt") with predictions
-  truth_dir = "./reference_data"#directory with jsonl files containing references and articles 
-  output_dir = "./output"
+  submit_dir = "./"
+  truth_dir = "/ref"
+  output_dir = "/output"
 
   if task_name == "lay_summ":
     # Calculate eLife scores
@@ -185,9 +185,6 @@ def final_score(task_name):
     
   # Write overall score
   write_scores(final_scores, os.path.join(output_dir, 'scores.txt'))
-
-
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Evaluate medical text generation outputs.")
