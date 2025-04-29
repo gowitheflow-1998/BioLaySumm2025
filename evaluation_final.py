@@ -166,7 +166,7 @@ def final_score(task_name):
 
     # Calculate overall scores
     final_scores = {key: np.mean([elife_scores[key], plos_scores[key]]) for key in elife_scores.keys()}
-  elif task_name == "rrg":
+  elif task_name == "open_rrg":
     # Calculate RRG scores
     final_scores = evaluate_all(
       read_file_lines(os.path.join(submit_dir, 'open_rrg.txt')), 
@@ -190,7 +190,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Evaluate medical text generation outputs.")
     parser.add_argument('--prediction_file', type=str, required=True,default= 'BioLaySumm2025-eLife_result.json', help='Path to the predictions JSON file.')
     parser.add_argument('--groundtruth_file', type=str, default= 'BioLaySumm2025-eLife_result.json',required=True, help='Path to the ground truth JSON file.')
-    parser.add_argument('--task_name',  type=str,  default= 'lay_summ', required=True, help='The name of the task.') #"rrg","close_rrg"
+    parser.add_argument('--task_name',  type=str,  default= 'lay_summ', required=True, help='The name of the task.') #"open_rrg","close_rrg"
     args = parser.parse_args()
 
     evaluate_all(args.prediction_file, args.groundtruth_file, args.task_name)
